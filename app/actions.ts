@@ -40,7 +40,15 @@ export async function addPlaceAction(prevState: any, formData: FormData) {
     return {
         message: "Place added successfully!",
         success: true,
-        place: { ...data, lat, lng, name, description, rating }
+        place: {
+            ...data,
+            lat,
+            lng,
+            name,
+            description,
+            rating,
+            created_at: new Date().toISOString()
+        }
     };
 }
 
@@ -56,10 +64,9 @@ export async function createGroupAction(prevState: any, formData: FormData) {
         return { message: "You must be logged in.", success: false };
     }
 
-    // 2. Validate Code (if provided)
-    // Basic regex: Alphanumeric only, 3-20 chars
-    if (customCode && !/^[A-Za-z0-9]{3,20}$/.test(customCode)) {
-        return { message: "Code must be 3-20 alphanumeric characters.", success: false };
+    // 2. Validate Code (REQUIRED)
+    if (!customCode || !/^[A-Za-z0-9]{3,20}$/.test(customCode)) {
+        return { message: "Code is required (3-20 alphanumeric chars).", success: false };
     }
 
     // 3. Insert Group via RPC (Security Definer)

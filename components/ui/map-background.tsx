@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useEffect, useMemo } from "react";
-import Map, { MapRef, Marker } from "react-map-gl/mapbox";
+// ... imports
+import Map, { MapRef, Marker, Popup } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { type LngLatBoundsLike } from "mapbox-gl";
+import { PlaceData, PoiDetailsCard } from "../poi-details-modal";
 
 export interface PlaceMarker {
     id: string;
@@ -27,6 +29,9 @@ interface MapBackgroundProps {
     interactive?: boolean;
     userLocation?: { latitude: number; longitude: number; timestamp?: number } | null;
     autoFit?: boolean;
+    selectedPlace?: PlaceData | null;
+    onPopupClose?: () => void;
+    focusedLocation?: { latitude: number; longitude: number; timestamp?: number } | null;
 }
 
 export function MapBackground({
@@ -34,42 +39,66 @@ export function MapBackground({
     markers = [],
     onMarkerClick,
     onClick,
-    mapStyle = "mapbox://styles/mapbox/standard", // Updated to Standard
+    mapStyle = "mapbox://styles/mapbox/standard",
     interactive = true,
     userLocation,
-    autoFit = true
+    autoFit = true,
+    selectedPlace,
+    onPopupClose,
+    focusedLocation
 }: MapBackgroundProps) {
     const mapRef = React.useRef<MapRef>(null);
 
-    console.log("MAP BACKGROUND COMPONENT RENDERED");
-
-    // Auto-zoom to fit markers (Initial or when markers change drastically)
+    // Auto-zoom to fit markers Logic...
     useEffect(() => {
         if (!mapRef.current || markers.length === 0 || !autoFit) return;
-        // Don't auto-fit if we just asked to fly to user (recent timestamp)
-        if (userLocation && userLocation.timestamp && Date.now() - userLocation.timestamp < 5000) return;
+        // Don't auto-fit if we just asked to fly to user or a specific location
+        if ((userLocation?.timestamp && Date.now() - userLocation.timestamp < 5000) ||
+            (focusedLocation?.timestamp && Date.now() - focusedLocation.timestamp < 5000)) return;
 
-        // ... build bounds ...
+        // ... existing bounds calculation ...
         const longitudes = markers.map(m => m.longitude);
         const latitudes = markers.map(m => m.latitude);
-
         const minLng = Math.min(...longitudes);
         const maxLng = Math.max(...longitudes);
         const minLat = Math.min(...latitudes);
         const maxLat = Math.max(...latitudes);
-
         const bounds: LngLatBoundsLike = [[minLng, minLat], [maxLng, maxLat]];
-        mapRef.current.fitBounds(bounds, { padding: 80, duration: 1500, pitch: 60 }); // Increased pitch for 3D effect
-    }, [markers, userLocation, autoFit]);
+        mapRef.current.fitBounds(bounds, { padding: 80, duration: 1500, pitch: 60 });
+    }, [markers, userLocation, autoFit, focusedLocation]);
 
-    // Handle Map Load to set Config
+    // Fly to User Location
+    useEffect(() => {
+        if (userLocation && mapRef.current) {
+            mapRef.current.flyTo({
+                center: [userLocation.longitude, userLocation.latitude],
+                zoom: 16,
+                pitch: 60,
+                duration: 2000,
+                essential: true
+            });
+        }
+    }, [userLocation]);
+
+    // Fly to Focused Location (POI Click)
+    useEffect(() => {
+        if (focusedLocation && mapRef.current) {
+            mapRef.current.flyTo({
+                center: [focusedLocation.longitude, focusedLocation.latitude],
+                zoom: 17, // Closer zoom for POI
+                pitch: 60,
+                duration: 1500,
+                essential: true
+            });
+        }
+    }, [focusedLocation]);
+
+
+    // Handle Map Load... (existing)
     const onMapLoad = (e: any) => {
         const map = e.target;
-        // console.log("Map Loaded, setting config for style:", mapStyle); 
-
         if (mapStyle.includes("standard")) {
             try {
-                // Set the config for the Standard style
                 map.setConfig('basemap', {
                     lightPreset: 'night',
                     showPointOfInterestLabels: true,
@@ -81,29 +110,13 @@ export function MapBackground({
         }
     };
 
-    useEffect(() => {
-        console.log("MapBackground: userLocation effect triggered", userLocation);
-        if (userLocation && mapRef.current) {
-            console.log("Flying to:", userLocation);
-            mapRef.current.flyTo({
-                center: [userLocation.longitude, userLocation.latitude],
-                zoom: 16,
-                pitch: 60,
-                duration: 2000,
-                essential: true
-            });
-        } else {
-            console.log("MapBackground: skipping flyTo. mapRef:", !!mapRef.current, "userLocation:", userLocation);
-        }
-    }, [userLocation]);
-
     return (
         <div className="fixed inset-0 z-0">
             <Map
                 ref={mapRef}
                 mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
                 onClick={onClick}
-                onLoad={onMapLoad} // Use onLoad to guarantee map instance is ready
+                onLoad={onMapLoad}
                 initialViewState={
                     viewState || {
                         longitude: 12.4964,
@@ -150,8 +163,8 @@ export function MapBackground({
                                 <div className="w-2 h-2 bg-white rounded-full" />
                             </div>
 
-                            {/* Tooltip (Simple) */}
-                            {marker.title && (
+                            {/* Tooltip (Simple) - Only show if NO popup is open or selected, avoiding clutter */}
+                            {marker.title && !selectedPlace && (
                                 <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap px-3 py-1 bg-black/80 backdrop-blur-md border border-white/10 rounded-lg text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                                     {marker.title}
                                 </div>
@@ -159,8 +172,37 @@ export function MapBackground({
                         </div>
                     </Marker>
                 ))}
+
+                {selectedPlace && (
+                    <Popup
+                        longitude={selectedPlace.lng}
+                        latitude={selectedPlace.lat}
+                        anchor="bottom"
+                        offset={25}
+                        closeButton={false}
+                        closeOnClick={false}
+                        maxWidth="400px"
+                        className="poi-popup"
+                    >
+                        <PoiDetailsCard place={selectedPlace} onClose={() => onPopupClose && onPopupClose()} />
+                    </Popup>
+                )}
+
+                {/* Styled JSX for Popup transparency overrides */}
+                <style jsx global>{`
+                    .poi-popup .mapboxgl-popup-content {
+                        background: transparent !important;
+                        box-shadow: none !important;
+                        padding: 0 !important;
+                    }
+                    .poi-popup .mapboxgl-popup-tip {
+                        border-top-color: rgba(0,0,0,0.8) !important; 
+                        margin-bottom: -1px; /* visual tweak */
+                    }
+                `}</style>
+
             </Map>
-            {/* Overlay gradient to ensure UI text legibility over the map */}
+            {/* Overlay gradient */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 pointer-events-none" />
         </div >
     );

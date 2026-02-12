@@ -9,6 +9,7 @@ import { AddPlaceForm } from "@/components/add-place-form";
 import { AuthModal } from "@/components/auth/auth-modal";
 import { Plus, X, Loader2, MapPin, Share2 } from "lucide-react";
 import Link from "next/link";
+import { PlaceData } from "@/components/poi-details-modal";
 import { LiquidButton } from "@/components/ui/liquid-button";
 
 interface GroupData {
@@ -18,15 +19,9 @@ interface GroupData {
     share_code: string;
 }
 
-interface PlaceData {
-    id: string;
-    name: string;
-    description: string;
-    lat: number;
-    lng: number;
-    rating: number;
-    user_full_name: string;
-}
+// NOTE: We are using the PlaceData exported from PoiDetailsModal to ensure consistency
+// But we need to make sure the state initialization matches.
+// We'll remove the local interface definition to avoid conflicts.
 
 export default function GroupPage() {
     const { shareCode } = useParams();
@@ -41,7 +36,11 @@ export default function GroupPage() {
 
     // Add Place State
     const [isAddingMode, setIsAddingMode] = useState(false);
-    const [tempMarker, setTempMarker] = useState<{ lat: number; lng: number } | null>(null);
+    const [tempMarker, setTempMarker] = useState<{ lat: number; lng: number; name?: string } | null>(null);
+
+    // POI Details Modal State
+    const [selectedPlace, setSelectedPlace] = useState<PlaceData | null>(null);
+    const [focusedLocation, setFocusedLocation] = useState<{ latitude: number; longitude: number; timestamp?: number } | null>(null);
 
     // Auth Modal State
     const [showAuthModal, setShowAuthModal] = useState(false);
@@ -52,17 +51,75 @@ export default function GroupPage() {
 
     const handleMapClick = (e: any) => {
         if (!isAddingMode || !user) return;
-        const { lng, lat } = e.lngLat;
-        setTempMarker({ lng, lat });
+
+        let { lng, lat } = e.lngLat;
+        let foundName = undefined;
+
+        // Smart Snapping Logic
+        const map = e.target;
+        if (map && map.queryRenderedFeatures) {
+            // Use a bounding box to make clicking easier (especially on 3D maps)
+            const width = 10;
+            const height = 10;
+            const bbox = [
+                [e.point.x - width / 2, e.point.y - height / 2],
+                [e.point.x + width / 2, e.point.y + height / 2]
+            ];
+
+            const features = map.queryRenderedFeatures(bbox);
+
+            // Debug: Log what we found to help understand map layers
+            // console.log("Clicked Features:", features.map((f: any) => ({ layer: f.layer.id, props: f.properties })));
+
+            // Prioritize POI labels
+            const poiFeature = features.find((f: any) =>
+                f.properties?.name &&
+                f.layer &&
+                (f.layer.id?.includes('poi') || f.layer.id?.includes('label') || f.properties.class === 'poi_label')
+            ) || features.find((f: any) => f.properties?.name); // Fallback to anything with a name
+
+            if (poiFeature) {
+                console.log("Snapped to POI:", poiFeature.properties.name);
+                foundName = poiFeature.properties.name;
+
+                // If the feature is a Point, snap to its specific coordinates
+                if (poiFeature.geometry.type === 'Point') {
+                    // @ts-ignore
+                    const [pLng, pLat] = poiFeature.geometry.coordinates;
+                    lng = pLng;
+                    lat = pLat;
+                }
+            }
+        }
+
+        setTempMarker({ lng, lat, name: foundName });
         setIsAddingMode(false);
     };
 
-    const handlePlaceAdded = (newPlace: any) => {
-        // Optimistic update: Add the new place to the list
-        // We need to ensure the user_full_name is present (it might not be in the raw return from RPC/action if it just returns the record)
-        // The action returns `place` which is the row from `places` table. 
-        // We need to attach user info for display consistency.
+    const handleMarkerClick = (placeId: string) => {
+        const place = places.find(p => p.id === placeId);
+        if (place) {
+            setSelectedPlace(place);
+            setFocusedLocation({
+                latitude: place.lat,
+                longitude: place.lng,
+                timestamp: Date.now()
+            });
+        }
+    };
 
+    const handleListClick = (place: PlaceData) => {
+        setSelectedPlace(place);
+        // Fly to the location
+        setFocusedLocation({
+            latitude: place.lat,
+            longitude: place.lng,
+            timestamp: Date.now()
+        });
+    };
+
+    const handlePlaceAdded = (newPlace: any) => {
+        // Optimistic update
         const placeWithUser = {
             ...newPlace,
             user_full_name: user?.user_metadata?.full_name || user?.email || "Anonymous"
@@ -72,12 +129,10 @@ export default function GroupPage() {
         setAutoFitEnabled(false);
         setPlaces(prev => [...prev, placeWithUser]);
         setTempMarker(null);
-        // NO RELOAD: window.location.reload(); 
     };
 
     useEffect(() => {
         async function fetchData() {
-            // ... (keeping existing fetch logic, just hidden for brevity in replacement if not touched)
             if (!shareCode) return;
 
             // 0. Check User Session
@@ -120,12 +175,6 @@ export default function GroupPage() {
                 setPlaces(placesData);
             }
 
-            // 3. User Geolocation (Only if places list is empty or explicitly requested)
-            // For now, let's just log it or we could center the map. 
-            // Better: update the map view state if we have a ref interactively, but here we just load data.
-            // We'll trust MapBackground to handle centering on markers if they exist.
-            // If NO markers, we try to center on user.
-
             setLoading(false);
         }
 
@@ -164,11 +213,6 @@ export default function GroupPage() {
         }] : [])
     ], [places, tempMarker]);
 
-    // ... (rest of render)
-
-    // WAIT, I should fix the RPC first to return loose lat/lng columns.
-    // That's cleaner than parsing WKT on the client.
-
     return (
         <div className="relative min-h-screen">
             {/* Pass Places to Map */}
@@ -177,9 +221,15 @@ export default function GroupPage() {
                     markers={mapMarkers}
                     // @ts-ignore
                     onClick={handleMapClick}
+                    onMarkerClick={handleMarkerClick}
                     viewState={viewState}
                     userLocation={userLocation}
                     autoFit={autoFitEnabled && !tempMarker}
+
+                    // New Props for Popup & Focus
+                    selectedPlace={selectedPlace}
+                    onPopupClose={() => setSelectedPlace(null)}
+                    focusedLocation={focusedLocation}
                 />
             </div>
 
@@ -268,6 +318,7 @@ export default function GroupPage() {
                     <AddPlaceForm
                         lat={tempMarker.lat}
                         lng={tempMarker.lng}
+                        initialName={tempMarker.name}
                         groupId={group.id}
                         shareCode={group.share_code}
                         onClose={() => setTempMarker(null)}
@@ -293,7 +344,11 @@ export default function GroupPage() {
                             )}
 
                             {places.map((place, i) => (
-                                <div key={place.id} className="p-4 rounded-xl bg-white/5 border border-white/5 flex gap-4 items-center group hover:bg-white/10 transition-colors cursor-pointer">
+                                <div
+                                    key={place.id}
+                                    className="p-4 rounded-xl bg-white/5 border border-white/5 flex gap-4 items-center group hover:bg-white/10 transition-colors cursor-pointer"
+                                    onClick={() => handleListClick(place)}
+                                >
                                     <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold group-hover:bg-blue-500 group-hover:text-white transition-colors">
                                         {i + 1}
                                     </div>
@@ -310,6 +365,9 @@ export default function GroupPage() {
                     </GlassPanel>
                 </div>
             )}
+
+            {/* REMOVED OLD PoiDetailsModal - it's handled in MapBackground now */}
+
             {/* Auth Modal */}
             <AuthModal
                 isOpen={showAuthModal}

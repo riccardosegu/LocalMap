@@ -67,17 +67,15 @@ export default function CreateGroupPage() {
     return (
         <div className="flex flex-col items-center justify-center min-h-screen p-4 relative overflow-hidden">
 
-            <MapBackground
-                interactive={false}
-                viewState={{
-                    longitude: 12.4964,
-                    latitude: 41.9028,
-                    zoom: 12,
-                    pitch: 0
-                }}
-                mapStyle="mapbox://styles/mapbox/dark-v11"
-            />
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-0" />
+            {/* Animated Background */}
+            <div className="fixed inset-0 z-0 overflow-hidden bg-black flex items-center justify-center">
+                <div className="absolute top-[-10%] left-[-10%] w-[50vh] h-[50vh] bg-purple-600/30 rounded-full blur-[100px] animate-blob" />
+                <div className="absolute top-[20%] right-[-10%] w-[60vh] h-[60vh] bg-blue-600/30 rounded-full blur-[100px] animate-blob animation-delay-2000" />
+                <div className="absolute bottom-[-10%] left-[20%] w-[50vh] h-[50vh] bg-indigo-600/30 rounded-full blur-[100px] animate-blob animation-delay-4000" />
+
+                {/* Noise/Texture Overlay Optional */}
+                <div className="absolute inset-0 bg-white/5 opacity-20 pointer-events-none" style={{ backgroundImage: 'url("/noise.png")' }}></div>
+            </div>
 
             <div className="relative z-10 w-full max-w-md">
 
@@ -106,7 +104,6 @@ export default function CreateGroupPage() {
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-center pl-1 pr-1">
                                         <label className="text-xs font-semibold text-white/60 uppercase tracking-widest">Group Code</label>
-                                        <span className="text-[10px] text-white/40 uppercase">Optional</span>
                                     </div>
                                     <GlassInput
                                         name="customCode"
@@ -115,10 +112,8 @@ export default function CreateGroupPage() {
                                         value={customCode}
                                         onChange={(e) => setCustomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                                         className="font-mono tracking-wider uppercase"
+                                        required
                                     />
-                                    <p className="text-[10px] text-white/30 pl-1">
-                                        Leave empty for a random code. This code is used to join the group.
-                                    </p>
                                 </div>
                             </div>
 

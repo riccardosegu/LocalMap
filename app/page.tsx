@@ -95,9 +95,9 @@ export default function Home() {
       {/* Background Map: Static Image for Homepage Performance */}
       <div className="fixed inset-0 z-0">
         <img
-          src="/mapbg.png"
+          src="/mapbg_3.png"
           alt="Map Background"
-          className="w-full h-full object-cover opacity-80"
+          className="w-full h-full object-cover object-center opacity-80"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 pointer-events-none" />
       </div>
@@ -118,7 +118,7 @@ export default function Home() {
           </h1>
 
           <p className="text-lg sm:text-xl text-white/80 max-w-lg mx-auto font-light leading-relaxed drop-shadow-md">
-            Create shared circles. Pin your favorite spots.
+            Create shared circles. Pin your favorite spots.{" "}
             <br className="hidden sm:block" />
             Explore the city together.
           </p>
@@ -150,7 +150,7 @@ export default function Home() {
               </div>
 
               <p className="text-sm text-white/40">
-                No account needed to browse via code.
+                No account needed to browse your friends' map
               </p>
             </div>
           ) : (
