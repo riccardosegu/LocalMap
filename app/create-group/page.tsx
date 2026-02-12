@@ -147,7 +147,7 @@ export default function CreateGroupPage() {
                         <div className="p-6 rounded-2xl bg-black/40 border border-white/10 space-y-4 text-center">
                             <div className="text-xs text-white/40 uppercase tracking-widest">Share Code</div>
                             <div className="text-4xl font-mono font-bold text-blue-400 tracking-widest select-all">
-                                {state.group.share_code}
+                                {state.group?.share_code}
                             </div>
                             <p className="text-xs text-white/30">Anyone with this code can verify & join.</p>
                         </div>
