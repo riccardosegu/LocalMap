@@ -54,7 +54,7 @@ export default function CreateGroupPage() {
 
     const handleCopy = () => {
         if (!state.group) return;
-        const link = `${window.location.origin}/group/${state.group.share_code}`;
+        const link = `${window.location.origin}/group/${state.group?.share_code}`;
         navigator.clipboard.writeText(link);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
@@ -158,7 +158,7 @@ export default function CreateGroupPage() {
                                 {copied ? "Copied" : "Copy Link"}
                             </LiquidButton>
 
-                            <LiquidButton onClick={() => router.push(`/group/${state.group.share_code}`)}>
+                            <LiquidButton onClick={() => router.push(`/group/${state.group?.share_code}`)}>
                                 Enter Map <ArrowRight className="w-4 h-4" />
                             </LiquidButton>
                         </div>
