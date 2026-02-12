@@ -32,6 +32,12 @@ interface MapBackgroundProps {
     selectedPlace?: PlaceData | null;
     onPopupClose?: () => void;
     focusedLocation?: { latitude: number; longitude: number; timestamp?: number } | null;
+    initialViewState?: {
+        longitude: number;
+        latitude: number;
+        zoom: number;
+        pitch?: number;
+    };
 }
 
 export function MapBackground({
@@ -45,7 +51,8 @@ export function MapBackground({
     autoFit = true,
     selectedPlace,
     onPopupClose,
-    focusedLocation
+    focusedLocation,
+    initialViewState
 }: MapBackgroundProps) {
     const mapRef = React.useRef<MapRef>(null);
 
@@ -118,7 +125,7 @@ export function MapBackground({
                 onClick={onClick}
                 onLoad={onMapLoad}
                 initialViewState={
-                    viewState || {
+                    initialViewState || viewState || {
                         longitude: 12.4964,
                         latitude: 41.9028,
                         zoom: 11,
